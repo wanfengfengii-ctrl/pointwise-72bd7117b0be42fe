@@ -1,0 +1,14 @@
+{
+  "start": "feed-corrected",
+  "terminals": ["rack-corrected"],
+  "states": {
+    "feed-corrected": [
+      {"lower": "0", "upper": "1", "action": "进站", "next": "sort-corrected"}
+    ],
+    "sort-corrected": [
+      {"lower": "0", "upper": "1/2", "action": "留线", "next": "rack-corrected"},
+      {"lower": "1/2", "upper": "1", "action": "返检", "next": "rack-corrected"}
+    ]
+  },
+  "note": "次拍路由更正"
+}

@@ -1,0 +1,14 @@
+{
+  "start": "line-entry",
+  "terminals": ["tray"],
+  "states": {
+    "line-entry": [
+      {"lower": "0", "upper": "1", "action": "进站", "next": "second-check"}
+    ],
+    "second-check": [
+      {"lower": "0", "upper": "1/2", "action": "返检", "next": "tray"},
+      {"lower": "1/2", "upper": "1", "action": "留线", "next": "tray"}
+    ]
+  },
+  "note": "恢复原等级路由"
+}

@@ -1,0 +1,14 @@
+{
+  "start": "private-feed-34",
+  "terminals": ["private-rack-90"],
+  "states": {
+    "private-feed-34": [
+      {"lower": "0", "upper": "1", "action": "进站", "next": "private-sort-28"}
+    ],
+    "private-sort-28": [
+      {"lower": "0", "upper": "1/2", "action": "返检", "next": "private-rack-90"},
+      {"lower": "1/2", "upper": "1", "action": "留线", "next": "private-rack-90"}
+    ]
+  },
+  "note": "现场柜号 Q-284，仅供白班点查"
+}
