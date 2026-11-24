@@ -73,3 +73,28 @@ with closing(open_database('night.sqlite3')) as night:
 交换件是按键排序、无多余空白的 UTF-8 JSON。外层字段为 `version`、`station`、`issue_id`、`rule_code`、`revision_id`、`body`、`digest`。`digest` 是其余字段规范编码的 SHA-256 十六进制值，用于核对来件内容与出处是否相符。交班渠道负责确认实际送件站。`body.traces` 是按下界升序的完整等级分区，每行含有规范分数字符串 `lower`、`upper`、公开 `actions` 及 `repeat_from`。`repeat_from` 为 `null` 时，最后一个动作之后的下一拍结束。整数表示从动作数组的该零起始下标重复到数组末尾。正文仅移交公开动作及其适用等级，内部状态号和私有备注保存在规程修订中。
 
 每个共同等级段的质量等于其长度。两条已固定轨迹发生动作不同或仅一方结束的第一拍计入首差，双方同拍结束且此前一致计入始终一致。无限轨迹在该段内两侧位置组合重复且此前动作一致时计入始终一致。概率质量总和为 1，全一致时首差元组为空。定稿固定双实收号、发行站、发行号、源规程号、源修订和摘要。回执绑定同一报告及同一有序父件。重开重复初始化保留已保存的数据，领取旧报告直接从原定稿与回执读取。
+
+## 外协窗口复查接口
+
+外部窗口复查的格式与口径见 WINDOW_REVIEW.md。窗口签发另有入口，与 V1 共用同一批所有者与编号空间：
+
+```python
+from intake.receive import pin_window_issue, receive_window
+from issue.freeze import freeze_window, make_window_packet
+from report.compare import compare_window
+
+issue_id, credential = freeze_window(catalog, issues, revision_id)
+pin_window_issue(intake, station, issue_id, credential)          # 可信渠道预置
+packet = make_window_packet(issues, issue_id, '1/4', '3/4')      # 按原段交付
+receipt = receive_window(intake, station, issue_id, '1/4', '3/4', packet)
+signed = compare_window(intake, store, left_id, right_id)
+```
+
+- `freeze_window` 固定指定修订并返回 `(issue_id, credential)`；凭据是不透明 `bytes`，未知修订沿用 `UnknownRevision`。
+- `pin_window_issue` 按站号与发行号预置凭据，重复相同字节成功，冲突抛 `ValueError` 且保留原凭据；持久化在外协库。
+- `make_window_packet` 以发行时原段为准交付 `[lo, hi)` 窗口件，只含与窗口有正长交集的全部原段，保留原段边界；未知/未窗口发行的号码及非法窗口抛 `ValueError`。
+- `receive_window` 按请求的发行、窗口和预置凭据核验来件；缺凭据、错发行、错窗、漏段、越窗段或被改写均抛 `ValueError` 且不落库。成功返回 `IntakeReceipt`，`digest` 为实际收件字节的 SHA-256。
+- `compare_window` 接受两个已核定窗口实收号，`draft.window` 为 `(Fraction, Fraction)`，`draft.parents` 为按输入顺序的实际双实收回执；缺父件、任一父件非窗口实收或两窗不同抛 `InvalidComparison`。定稿与回执可经 `read(store, report_id)` 复领。
+
+窗口件是 `version` 为 2 的规范 JSON，含 `body.window`、`body.traces` 与 `body.proof`。`proof` 用预置凭据所含 MAC 密钥对发行身份、窗口和交付原段签名，来件自述摘要不能替代预置凭据。每个共同原段的质量为窗内交叠长度除以窗长，首差只列升序非零项。
+

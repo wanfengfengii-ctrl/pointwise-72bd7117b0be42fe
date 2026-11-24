@@ -12,6 +12,7 @@ class ReportDraft:
     parents: tuple[IntakeReceipt, IntakeReceipt]
     first_differences: tuple[tuple[int, Fraction], ...]
     always_same: Fraction
+    window: tuple[Fraction, Fraction] | None = None
 
 
 @dataclass(frozen=True)
@@ -49,16 +50,16 @@ class ReportStore:
 
     def commit(self, draft: ReportDraft) -> SignedReport:
         parents = [asdict(parent) for parent in draft.parents]
-        stored = json.dumps(
-            {
-                'parents': parents,
-                'first_differences': [(beat, str(mass)) for beat, mass in draft.first_differences],
-                'always_same': str(draft.always_same),
-            },
-            ensure_ascii=False,
-        )
+        stored = {
+            'parents': parents,
+            'first_differences': [(beat, str(mass)) for beat, mass in draft.first_differences],
+            'always_same': str(draft.always_same),
+        }
+        if draft.window is not None:
+            stored['window'] = [str(draft.window[0]), str(draft.window[1])]
+        encoded = json.dumps(stored, ensure_ascii=False)
         with write_transaction(self.connection):
-            cursor = self.connection.execute('INSERT INTO reports (draft) VALUES (?)', (stored,))
+            cursor = self.connection.execute('INSERT INTO reports (draft) VALUES (?)', (encoded,))
             receipt = ReportReceipt(cursor.lastrowid, draft.parents)
             self.connection.execute(
                 'INSERT INTO report_receipts (report_id, parents) VALUES (?, ?)',
@@ -78,10 +79,14 @@ class ReportStore:
         if row is None:
             return None
         stored = json.loads(row[0])
+        window = None
+        if 'window' in stored:
+            window = (Fraction(stored['window'][0]), Fraction(stored['window'][1]))
         draft = ReportDraft(
             _parents_from_json(stored['parents']),
             tuple((beat, Fraction(mass)) for beat, mass in stored['first_differences']),
             Fraction(stored['always_same']),
+            window,
         )
         receipt = ReportReceipt(report_id, _parents_from_json(json.loads(row[1])))
         return SignedReport(report_id, draft, receipt)
